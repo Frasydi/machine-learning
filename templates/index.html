@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live Prediction (WebSocket)</title>
+</head>
+<body>
+  <h2>Live Prediction via WebSocket</h2>
+  <video id="video" autoplay playsinline width="320" height="240"></video>
+  <p><strong>Prediction:</strong> <span id="result">Waiting...</span></p>
+
+  <script>
+    const video = document.getElementById('video');
+    const resultSpan = document.getElementById('result');
+    const ws = new WebSocket(`wss://${window.location.host}/ws`);
+
+    ws.onmessage = (event) => {
+        console.log(event.data)
+      const data = JSON.parse(event.data);
+      if (data.error) {
+        resultSpan.textContent = "Error: " + data.error;
+      } else {
+        resultSpan.textContent = `${data.label} (${(data.confidence * 100).toFixed(1)}%)`;
+      }
+    };
+
+    // Start webcam
+    navigator.mediaDevices.getUserMedia({ video: {
+        facingMode: 'environment', // Use the front camera
+    } })
+      .then(stream => {
+        video.srcObject = stream;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 128;
+        canvas.height = 128;
+
+        setInterval(() => {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(blob => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(reader.result); // base64 data URL
+              }
+            };
+            reader.readAsDataURL(blob);
+          }, 'image/jpeg');
+        }, 1000); // every second
+      })
+      .catch(error => {
+        console.error("Webcam error:", error);
+      });
+  </script>
+</body>
+</html>
